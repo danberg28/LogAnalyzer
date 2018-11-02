@@ -17,32 +17,42 @@ func readFromInput(wg *sync.WaitGroup, bytesChannel, linesProcessedChannel chan 
 	// will seperate when there is a newline character
 	lineSep := []byte{'\n'}
 	byteCount := 0
-
-	for {
-		read_from_std_in
-		c := Read(buf)
-		byteCount += c
+	// work in progress
+	//get streaming data into channels
+	for line := range scan(os.Stdin) {
+		c, err := Read(line)
+		if err != nil {
+			fmt.Println(err)
+			wg.Done()
+			return
+		}
+		bytesChannel <- c
 		// counts the bytes between the line seperations
-		count += bytes.Count(buf[:c], lineSep)
+		linesProcessedChannel <- bytes.Count(buf[:c], lineSep)
 	}
-
-	// filescanner := io.Reader(os.Stdin)
-
-	fmt.Println(os.Stdin)
-	// for liness := range linesProcessedChannel {
-	// 	fmt.Println(liness)
-	wg.Done()
-	// }
 
 }
 
 func writeReport(wg *sync.WaitGroup, startTime time.Time, bytesChannel, linesProcessedChannel chan int) {
 	// since sharing the channel prints the bytes and lines at the end.
+	numBytesCount := 0
+	linesCount := 0
+	var numBytes64 int64
+
 	defer wg.Done()
-	fmt.Println("dibne")
-	for bytess := range bytesChannel {
-		fmt.Println(bytess)
+	for numBytes := range bytesChannel {
+		numBytesCount += numBytes
 	}
+	for lines := range linesProcessedChannel {
+		linesCount += lines
+	}
+	numBytes64 = int64(numBytesCount)
+	d := time.Duration(time.Since(startTime)) * time.Millisecond
+	ms := int64(d / time.Millisecond)
+	fmt.Println("Total bytes:", numBytesCount)
+	fmt.Println("Time to process:", time.Since(startTime))
+	fmt.Println("Throughput:", (numBytes64 / (ms / 1000)), "Bytes/s")
+	fmt.Println("Lines processed::", linesCount)
 
 }
 
@@ -56,12 +66,6 @@ func main() {
 	go readFromInput(&wg, bytesChannel, linesProcessedChannel)
 	wg.Add(1)
 	go writeReport(&wg, start, bytesChannel, linesProcessedChannel)
-
-	linesProcessedChannel <- count
-	bytesChannel <- 5
-	linesProcessedChannel <- 3
-	bytesChannel <- 4
-
 	wg.Wait()
 	fmt.Println("done")
 }
